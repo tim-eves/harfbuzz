@@ -166,7 +166,7 @@ public:
     // Positioning
     Position const & origin() const { return m_position; }
     Position & origin() { return m_position; }
-    Position const & shift() const { return m_shift; }
+    Position effective_shift(Segment const &, bool final, bool rtl) const;
 //     void adjKern(const Position &pos) { m_shift = m_shift + pos; m_advance = m_advance + pos; }
     float advance() const { return m_advance.x; }
     void advance(Position &val) { m_advance = val; }
@@ -175,8 +175,6 @@ public:
     void position_shift(Position const & p) { m_position += p; }
     void floodShift(Position adj, int depth = 0);
     void scale_by(float scale) { m_position *= scale; /*m_advance *= scale; m_shift *= scale; m_with *= scale; m_attach *= scale; */}
-    Position collision_shift(Segment const & seg) const;
-
 
     // Slot ordering
     uint32_t  index() const       { return m_index; }
@@ -209,7 +207,7 @@ public:
     void    bidiClass(int8_t cls)      { m_bidiCls = cls; }
 
     // Operations
-    Position update_cluster_metric(Segment const & seg, bool const rtl, bool const is_final, float & clsb, float & crsb, unsigned depth=100);
+    Position update_cluster_metric(Segment const & seg, bool rtl, bool final, float & clsb, float & crsb, unsigned depth=100);
     void update(int numSlots, int numCharInfo, Position &relpos);
     Position finalise(const Segment & seg, const Font* font, Position & base, Rect & bbox, uint8_t attrLevel, float & clusterMin, bool rtl, bool isFinal, int depth = 0);
     int32_t clusterMetric(Segment const & seg, metrics metric, uint8_t attrLevel, bool rtl) const;

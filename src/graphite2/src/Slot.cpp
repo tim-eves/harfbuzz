@@ -137,52 +137,51 @@ void Slot::update(int /*numGrSlots*/, int numCharInfo, Position &relpos)
     m_position = m_position + relpos;
 }
 
-
-Position Slot::collision_shift(Segment const & seg) const
+Position Slot::effective_shift(Segment const & seg, bool final, bool rtl) const
 {
-    auto const cinfo = seg.collisionInfo(*this);
-    return cinfo ? cinfo->offset() : Position{};
+    Position shift = m_shift; 
+    if (rtl) 
+        shift.x += -1; 
+    shift.x += m_just;
+    auto const collision_info = seg.collisionInfo(*this);
+    if (final && collision_info) {
+        // if (!(collision_info->flags() & SlotCollision::COLL_KERN) || rtl)
+            shift += collision_info->offset();
+    }
+    return shift;
 }
 
-
-Position Slot::update_cluster_metric(Segment const & seg, bool const rtl, bool const is_final, float & clsb, float & crsb, unsigned depth)
+Position Slot::update_cluster_metric(Segment const & seg, bool rtl, bool final, float & clsb, float & crsb, unsigned depth)
 {
     // Bail out early if the attachment chain is too deep.
     if (depth == 0) return Position();
 
-    // Incorporate shift into positioning, and cluster rsb calculations.
-    Position shift = {m_shift.x + m_just, m_shift.y};
-    auto const collision_info = seg.collisionInfo(*this);
-    if (is_final && collision_info) {
-        // if (!(collision_info->flags() & SlotCollision::COLL_KERN) || rtl)
-            shift += collision_info->offset();
-    }
+    // Incorporate shift into base child, and cluster lsb calculations.
+    Position const shift = effective_shift(seg, final, rtl);
 
-    // Only consider if design space advance is a non-zero whole unit.
     auto const slot_adv = m_advance.x + m_just;
     auto const parent = attachedTo();
-    auto pos = shift;
     if (!parent) {
-        clsb = min(0.0f, clsb);
-        pos = {0,0};
-        shift = {0,0};
+        clsb = min(shift.x, clsb);
+        crsb = max(slot_adv, crsb);
+        return {0, 0};
     } else {
-        auto base = parent->update_cluster_metric(seg, rtl, is_final, clsb, crsb, depth-1);
-        m_position = (pos += base + m_attach - m_with);
+        auto const base = parent->update_cluster_metric(seg, rtl, final, clsb, crsb, depth-1);
+        auto const attached = base + (m_attach - m_with);
+        m_position = attached + shift;
+        // Only consider if design space advance is a non-zero whole unit.
         if (m_advance.x >= 0.5f)
-            clsb = min(pos.x, clsb);
+            crsb = max(attached.x + slot_adv, crsb);
+        if (m_advance.x >= 0.5f || m_position.x < 0)
+            clsb = min(m_position.x, clsb);
+        return m_position;
     }
-
-    if (m_advance.x >= 0.5f)
-        // We only consider shift for attached glyphs not ourselves.
-        crsb = max(pos.x - shift.x + slot_adv, crsb);
-    return pos;
 }
 
 
 Position Slot::finalise(const Segment & seg, const Font *font, Position & base, Rect & bbox, uint8_t attrLevel, float & clusterMin, bool rtl, bool isFinal, int depth)
 {
-    // assert(false);
+    assert(false);
     SlotCollision *coll = NULL;
     if (depth > 100 || (attrLevel && m_attLevel > attrLevel)) return Position(0, 0);
     float scale = font ? font->scale() : 1.0f;
@@ -261,13 +260,18 @@ int32_t Slot::clusterMetric(const Segment & seg, metrics metric, uint8_t attrLev
         return 0;
     Rect bbox = seg.theGlyphBBoxTemporary(glyph());
     auto & slot = const_cast<Slot &>(*this);
-    float range[2] = {0, 0};
-    for (auto s = cluster(); s != end(); ++s)
+    float clsb = 0, crsb = 0, base_x = 0;
+    for (auto s = slot.cluster(); s != slot.end(); ++s)
     {
-        auto base = slot.update_cluster_metric(seg, rtl, false, range[0], range[1]);
+        auto base = s->update_cluster_metric(seg, rtl, false, clsb, crsb);
+        if (s->isBase())
+            base = s->effective_shift(seg, false, rtl);
         bbox.widen(seg.getFace()->glyphs().glyphSafe(glyph())->theBBox() + base);
     }
-    Position res = {range[1], m_advance.y};
+    auto const adj = clsb < 0 ? -clsb : 0.f;
+    bbox.bl.x += adj;
+    bbox.tr.x += adj;
+    Position res = {crsb + adj, m_advance.y};
     // Position res = const_cast<Slot *>(this)->finalise(seg, NULL, base, bbox, attrLevel, clusterMin, rtl, false);
 
     switch (metric)

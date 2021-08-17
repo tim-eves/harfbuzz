@@ -211,57 +211,50 @@ Position Segment::positionSlots(Font const * font, SlotBuffer::iterator first, S
         offset.x += crsb;
         ++last; ++first;
 #else
-        // For the first visual cluster ensure initial x positions are
-        //  never negative.
-        float clsb = 0.f;
-        for (auto slot = --last, end=--first; slot != end; --slot)
-        {
-            if (slot->isBase())
-                clsb = slot->origin().x;
-            if (-slot->origin().x > offset.x)
-                offset.x = -slot->origin().x;
-            if (slot->clusterhead()) break;
-        }
-        offset.x += clsb;
-
+        --last; --first;
         // Adjust all cluster bases
         for (auto slot = last, end=first; slot != end; --slot)
         {
             if (!slot->isBase()) continue;
 
             auto const clsb = slot->origin().x;
-            auto const crsb = slot->origin().y;
-            auto const shifts = slot->collision_shift(*this);
+            auto crsb = slot->origin().y;
+            // Set the bases position which is initially it's aggregate shift 
+            // (collision shift + slot shift + just) initialy.
+            slot->origin() = slot->effective_shift(*this, isFinal, true);
+            // if (clsb < 0)
+            // {
+            //     float const adj = slot->origin().x - clsb;
+            //     slot->origin().x += adj;
+            //     crsb += adj;
+            // }
             offset.x += -clsb;
-            // Subtract the slot shift as this is RtL.
-            slot->origin() = offset + shifts - slot->shift();
-            offset.x += crsb + shifts.x - slot->shift().x;
+            slot->origin() += offset;
+            offset.x += crsb;
         }
         ++last; ++first;
 #endif
     }
     else
     {
-        // For the first visual cluster ensure initial x positions are
-        //  never negative.
-        for (auto slot = first; slot != last; ++slot)
-        {
-            if (-slot->origin().x > offset.x)
-                offset.x = -slot->origin().x;
-            if (slot->clusterhead()) break;
-        }
-
         // Adjust all cluster bases
         for (auto slot = first; slot != last; ++slot)
         {
             if (!slot->isBase()) continue;
 
             auto const clsb = slot->origin().x;
-            auto const crsb = slot->origin().y;
-            auto const shifts = slot->collision_shift(*this);
-            offset.x += -clsb;
-            slot->origin() = offset + shifts + slot->shift();
-            offset.x += crsb + shifts.x;
+            auto crsb = slot->origin().y;
+            // Set the bases position which is initially it's aggregate shift 
+            // (collision shift + slot shift + just) initialy.
+            slot->origin() = slot->effective_shift(*this, isFinal, false);
+            if (clsb < 0)
+            {
+                float const adj = slot->origin().x - clsb;
+                slot->origin().x += adj;
+                crsb += adj;
+            }
+            slot->origin() += offset;
+            offset.x += crsb;
         }
     }
 
