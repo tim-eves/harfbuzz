@@ -143,7 +143,6 @@ public:
 public:       //only used by: GrSegment* makeAndInitialize(const GrFont *font, const GrFace *face, uint32_t script, const FeaturesHandle& pFeats/*must not be IsNull*/, encform enc, const void* pStart, size_t nChars, int dir);
     bool read_text(const Face *face, const Features* pFeats/*must not be NULL*/, gr_encform enc, const void*pStart, size_t nChars);
     void finalise(const Font *font, bool reverse=false);
-    float justify(SlotBuffer::iterator pSlot, const Font *font, float width, enum justFlags flags, SlotBuffer::iterator pFirst, SlotBuffer::iterator pLast);
     bool initCollisions();
 
     template<typename Callable>

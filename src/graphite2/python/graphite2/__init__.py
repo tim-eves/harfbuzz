@@ -133,8 +133,6 @@ fn('gr_seg_cinfo', c_void_p, c_void_p, c_uint)
 fn('gr_seg_n_slots', c_uint, c_void_p)
 fn('gr_seg_first_slot', c_void_p, c_void_p)
 fn('gr_seg_last_slot', c_void_p, c_void_p)
-fn('gr_seg_justify', c_float,
-    c_void_p, c_void_p, c_void_p, c_double, c_int, c_void_p, c_void_p)
 fn('gr_slot_next_in_segment', c_void_p, c_void_p)
 fn('gr_slot_prev_in_segment', c_void_p, c_void_p)
 fn('gr_slot_attached_to', c_void_p, c_void_p)
@@ -169,12 +167,12 @@ def tag_to_str(num):
 
 
 class Label(str):
-    def __new__(typename, ref, size):
+    def __new__(cls, ref, size):
         v = ctypes.string_at(ref, size)
         if sys.version_info.major > 2:
             v = v.decode("utf-8")
-        return super(Label, typename).__new__(
-                        typename, v)
+        return super(Label, cls).__new__(
+                        cls, v)
 
     def __init__(self, ref, size):
         self.ref = ref
@@ -418,12 +416,3 @@ class Segment(object):
             res.append(Slot(s))
             s = gr2.gr_slot_prev_in_segment(s)
         return res
-
-    def justify(self, start, font, width, flags, first=None, last=None):
-        gr2.gr_seg_justify(self.seg,
-                           start.slot,
-                           font.font,
-                           width,
-                           flags,
-                           first and first.slot,
-                           last and last.slot)

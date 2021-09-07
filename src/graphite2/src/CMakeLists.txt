@@ -82,7 +82,6 @@ add_library(graphite2
     GlyphFace.cpp
     GlyphCache.cpp
     Intervals.cpp
-    Justifier.cpp
     NameTable.cpp
     Pass.cpp
     Position.cpp

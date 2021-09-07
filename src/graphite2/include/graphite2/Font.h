@@ -82,7 +82,6 @@ struct gr_faceinfo {
     } space_contextuals;
     unsigned int has_bidi_pass : 1; /**< the table specifies that a bidirectional pass should run */
     unsigned int line_ends : 1;     /**< there are line end contextuals somewhere */
-    unsigned int justifies : 1;     /**< there are .justify properties set somewhere on some glyphs */
 };
 
 typedef struct gr_faceinfo gr_faceinfo;

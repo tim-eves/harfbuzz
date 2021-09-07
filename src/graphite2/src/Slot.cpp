@@ -38,10 +38,9 @@ using namespace graphite2;
 
 auto Slot::attributes::operator = (attributes const & rhs) -> attributes & {
     if (this != &rhs) {
-        reserve(rhs.num_attrs(), rhs.num_justs());
+        reserve(rhs.num_attrs());
         if (!rhs.is_inline() && external) {
-            auto const sz = external->n_attrs 
-                            + external->n_justs*NUMJUSTPARAMS + 1;
+            auto const sz = external->n_attrs + 1;
             memcpy(external, rhs.external, sz*sizeof(uint16_t));
         } else local = rhs.local;
     }
@@ -55,18 +54,15 @@ auto Slot::attributes::operator = (attributes && rhs) noexcept -> attributes & {
     return *this;
 }
 
-void Slot::attributes::reserve(size_t target_num_attrs, size_t target_num_justs) {
+void Slot::attributes::reserve(size_t target_num_attrs) {
     assert(target_num_attrs <  256);
-    assert(target_num_justs <  256);
 
-    if (num_attrs() >= target_num_attrs 
-        && num_justs() >= target_num_justs)
+    if (num_attrs() >= target_num_attrs)
         return;
 
-    if (target_num_justs > 0 
-        || target_num_attrs > sizeof local.data/sizeof *local.data)
+    if (target_num_attrs > sizeof local.data/sizeof *local.data)
     {
-        auto const sz = target_num_attrs + target_num_justs*NUMJUSTPARAMS + 1;
+        auto const sz = target_num_attrs + 1;
 
         if (is_inline()) {  // Convert to non-inline form.
             auto box = reinterpret_cast<decltype(external)>(grzeroalloc<int16_t>(sz));
@@ -74,31 +70,13 @@ void Slot::attributes::reserve(size_t target_num_attrs, size_t target_num_justs)
                 if (local.n_attrs) memcpy(box->data, local.data, local.n_attrs*sizeof *local.data);
                 external = box;
                 external->n_attrs = target_num_attrs;
-                external->n_justs = target_num_justs;
             }
         } else { // Grow the existing buffer.
             external = static_cast<decltype(external)>(realloc(external, sz*sizeof *local.data));
             external->n_attrs = target_num_attrs;
-            external->n_justs = target_num_justs;
         }
     }
     else local.n_attrs = target_num_attrs;
-}
-
-
-void Slot::init_just_infos(Segment const & seg)
-{
-    auto const target_num_justs = seg.silf()->numJustLevels();
-
-    for (int i = target_num_justs - 1; i >= 0; --i)
-    {
-        Justinfo *justs = seg.silf()->justAttrs() + i;
-        int16_t *v = m_attrs.just_info() + i * NUMJUSTPARAMS;
-        v[0] = seg.glyphAttr(gid(), justs->attrStretch());
-        v[1] = seg.glyphAttr(gid(), justs->attrShrink());
-        v[2] = seg.glyphAttr(gid(), justs->attrStep());
-        v[3] = seg.glyphAttr(gid(), justs->attrWeight());
-    }
 }
 
 Slot & Slot::operator = (Slot && rhs) noexcept 
@@ -141,8 +119,7 @@ Position Slot::effective_shift(Segment const & seg, bool final, bool rtl) const
 {
     Position shift = m_shift; 
     if (rtl) 
-        shift.x += -1; 
-    shift.x += m_just;
+        shift.x *= -1; 
     auto const collision_info = seg.collisionInfo(*this);
     if (final && collision_info) {
         // if (!(collision_info->flags() & SlotCollision::COLL_KERN) || rtl)
@@ -159,11 +136,10 @@ Position Slot::update_cluster_metric(Segment const & seg, bool rtl, bool final, 
     // Incorporate shift into base child, and cluster lsb calculations.
     Position const shift = effective_shift(seg, final, rtl);
 
-    auto const slot_adv = m_advance.x + m_just;
     auto const parent = attachedTo();
     if (!parent) {
         clsb = min(shift.x, clsb);
-        crsb = max(slot_adv, crsb);
+        crsb = max(m_advance.x - shift.x, crsb);
         return {0, 0};
     } else {
         auto const base = parent->update_cluster_metric(seg, rtl, final, clsb, crsb, depth-1);
@@ -171,8 +147,8 @@ Position Slot::update_cluster_metric(Segment const & seg, bool rtl, bool final, 
         m_position = attached + shift;
         // Only consider if design space advance is a non-zero whole unit.
         if (m_advance.x >= 0.5f)
-            crsb = max(attached.x + slot_adv, crsb);
-        if (m_advance.x >= 0.5f || m_position.x < 0)
+            crsb = max(attached.x + m_advance.x, crsb);
+        if (m_advance.x >= 0.5f)
             clsb = min(m_position.x, clsb);
         return m_position;
     }
@@ -181,12 +157,12 @@ Position Slot::update_cluster_metric(Segment const & seg, bool rtl, bool final, 
 
 Position Slot::finalise(const Segment & seg, const Font *font, Position & base, Rect & bbox, uint8_t attrLevel, float & clusterMin, bool rtl, bool isFinal, int depth)
 {
-    assert(false);
+//    assert(false);
     SlotCollision *coll = NULL;
     if (depth > 100 || (attrLevel && m_attLevel > attrLevel)) return Position(0, 0);
     float scale = font ? font->scale() : 1.0f;
-    Position shift(m_shift.x * (rtl * -2 + 1) + m_just, m_shift.y);
-    float tAdvance = m_advance.x + m_just;
+    Position shift(m_shift.x * (rtl * -2 + 1), m_shift.y);
+    float tAdvance = m_advance.x;
     if (isFinal && (coll = seg.collisionInfo(*this)))
     {
         const Position &collshift = coll->offset();
@@ -199,7 +175,7 @@ Position Slot::finalise(const Segment & seg, const Font *font, Position & base, 
         scale = font->scale();
         shift *= scale;
         if (font->isHinted() && glyphFace)
-            tAdvance = (m_advance.x - glyphFace->theAdvance().x + m_just) * scale + font->advance(glyph());
+            tAdvance = (m_advance.x - glyphFace->theAdvance().x) * scale + font->advance(glyph());
         else
             tAdvance *= scale;
     }
@@ -305,12 +281,6 @@ int32_t Slot::clusterMetric(const Segment & seg, metrics metric, uint8_t attrLev
 
 int Slot::getAttr(const Segment & seg, attrCode ind, uint8_t subindex) const
 {
-    if (ind >= gr_slatJStretch && ind < gr_slatJStretch + 20 && ind != gr_slatJWidth)
-    {
-        int indx = ind - gr_slatJStretch;
-        return getJustify(seg, indx / 5, indx % 5);
-    }
-
     switch (ind)
     {
     case gr_slatAdvX :      return int(m_advance.x);
@@ -335,7 +305,7 @@ int Slot::getAttr(const Segment & seg, attrCode ind, uint8_t subindex) const
     case gr_slatShiftY :    return int(m_shift.y);
     case gr_slatMeasureSol: return -1; // err what's this?
     case gr_slatMeasureEol: return -1;
-    case gr_slatJWidth:     return int(m_just);
+    case gr_slatJWidth:     return 0;
     case gr_slatUserDefnV1: subindex = 0; GR_FALLTHROUGH;
       // no break
     case gr_slatUserDefn :  return subindex < m_attrs.num_attrs() ? m_attrs.user_attributes()[subindex] : 0;
@@ -386,12 +356,7 @@ void Slot::setAttr(Segment & seg, attrCode ind, uint8_t subindex, int16_t value,
         if (seg.numAttrs() == 0)
             return;
     }
-    else if (ind >= gr_slatJStretch && ind < gr_slatJStretch + 20 && ind != gr_slatJWidth)
-    {
-        int indx = ind - gr_slatJStretch;
-        return setJustify(seg, indx / 5, indx % 5, value);
-    }
-
+    
     switch (ind)
     {
     case gr_slatAdvX :  m_advance.x = value; break;
@@ -449,7 +414,7 @@ void Slot::setAttr(Segment & seg, attrCode ind, uint8_t subindex, int16_t value,
     case gr_slatShiftY :    m_shift.y = value; break;
     case gr_slatMeasureSol :    break;
     case gr_slatMeasureEol :    break;
-    case gr_slatJWidth :    just(value); break;
+    case gr_slatJWidth :        break;
     case gr_slatSegSplit :  seg.charinfo(m_original)->addflags(value & 3); break;
     case gr_slatUserDefn :  assert(subindex < m_attrs.num_attrs()); m_attrs.user_attributes()[subindex] = value; break;
     case gr_slatColFlags :  {
@@ -478,37 +443,6 @@ void Slot::setAttr(Segment & seg, attrCode ind, uint8_t subindex, int16_t value,
     default :
         break;
     }
-}
-
-int Slot::getJustify(const Segment & seg, uint8_t level, uint8_t subindex) const
-{
-    if (level && level >= seg.silf()->numJustLevels()) return 0;
-
-    if (has_justify())
-        return m_attrs.just_info()[level * Slot::NUMJUSTPARAMS + subindex];
-
-    if (level >= seg.silf()->numJustLevels()) return 0;
-    Justinfo *jAttrs = seg.silf()->justAttrs() + level;
-
-    switch (subindex) {
-        case 0 : return seg.glyphAttr(gid(), jAttrs->attrStretch());
-        case 1 : return seg.glyphAttr(gid(), jAttrs->attrShrink());
-        case 2 : return seg.glyphAttr(gid(), jAttrs->attrStep());
-        case 3 : return seg.glyphAttr(gid(), jAttrs->attrWeight());
-        case 4 : return 0;      // not been set yet, so clearly 0
-        default: return 0;
-    }
-}
-
-void Slot::setJustify(Segment & seg, uint8_t level, uint8_t subindex, int16_t value)
-{
-    if (level && level >= seg.silf()->numJustLevels()) return;
-    if (!has_justify()) {
-        m_attrs.reserve(m_attrs.num_attrs(), std::max(1ul,seg.silf()->numJustLevels()));
-        init_just_infos(seg);
-    }
-    
-    m_attrs.just_info()[level * Slot::NUMJUSTPARAMS + subindex] = value;
 }
 
 bool Slot::add_child(Slot *ap)

@@ -177,41 +177,16 @@ Position Segment::positionSlots(Font const * font, SlotBuffer::iterator first, S
     Position offset = {0.f, 0.f};
     if (isRtl)
     {
-#if 0
-        Slot * base = nullptr;
-        float clsb = 0.f, crsb = 0.f;
-        auto cluster = --last;
-        for (auto slot = last, end=--first; slot != end; --slot)
-        {
-            slot->reset_origin();
-            auto const slot_base = slot->base();
-            if (base !=  slot_base)
-            {
-                offset.x += -clsb;
-                for (auto s = cluster; s != slot; --s)
-                {
-                    s->origin(offset + s->origin());
-                    if (s->origin().x < 0) 
-                    {
-                        offset.x += -s->origin().x;
-                        s->position_shift({-s->origin().x, 0.f});
-                    }
-                }
-                offset.x += crsb;
-                base = slot_base;
-                cluster = slot;
-                clsb = std::numeric_limits<float>::infinity();
-                crsb = 0;
-            }
-            slot->update_cluster_metric(*this, isRtl, isFinal, clsb, crsb);
-        }
-        offset.x += -clsb;
-        for (auto s = cluster; s != first; --s)
-            s->position_shift(offset);
-        offset.x += crsb;
-        ++last; ++first;
-#else
         --last; --first;
+        // Account for initial guard space.
+        for (auto slot = last; !slot->clusterhead(); --slot)
+        {
+            assert(slot != first); // TODO: investigate why this is tripped for only awami.
+            auto clsb = slot->base()->origin().x;
+            if (!slot->isBase())
+                offset.x = max(offset.x, -(slot->origin().x - clsb));
+        }
+
         // Adjust all cluster bases
         for (auto slot = last, end=first; slot != end; --slot)
         {
@@ -221,19 +196,18 @@ Position Segment::positionSlots(Font const * font, SlotBuffer::iterator first, S
             auto crsb = slot->origin().y;
             // Set the bases position which is initially it's aggregate shift 
             // (collision shift + slot shift + just) initialy.
-            slot->origin() = slot->effective_shift(*this, isFinal, true);
-            // if (clsb < 0)
-            // {
-            //     float const adj = slot->origin().x - clsb;
-            //     slot->origin().x += adj;
-            //     crsb += adj;
-            // }
-            offset.x += -clsb;
+            auto const shift = slot->effective_shift(*this, isFinal, true);
+            slot->origin() = shift;
+            if (clsb < 0)
+            {
+                float const adj = slot->origin().x - clsb;
+                slot->origin().x += adj;
+                crsb += adj;
+            }
             slot->origin() += offset;
-            offset.x += crsb;
+            offset.x += crsb + shift.x;
         }
         ++last; ++first;
-#endif
     }
     else
     {
@@ -246,7 +220,8 @@ Position Segment::positionSlots(Font const * font, SlotBuffer::iterator first, S
             auto crsb = slot->origin().y;
             // Set the bases position which is initially it's aggregate shift 
             // (collision shift + slot shift + just) initialy.
-            slot->origin() = slot->effective_shift(*this, isFinal, false);
+            auto const shift = slot->effective_shift(*this, isFinal, false);
+            slot->origin() = shift;
             if (clsb < 0)
             {
                 float const adj = slot->origin().x - clsb;
@@ -254,7 +229,7 @@ Position Segment::positionSlots(Font const * font, SlotBuffer::iterator first, S
                 crsb += adj;
             }
             slot->origin() += offset;
-            offset.x += crsb;
+            offset.x += crsb + shift.x;
         }
     }
 

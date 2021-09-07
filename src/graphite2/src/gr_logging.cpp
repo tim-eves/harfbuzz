@@ -202,8 +202,6 @@ json & graphite2::operator << (json & j, const dslot & ds) throw()
         << "advance"        << s.advancePos()
         << "insert"         << s.insertBefore()
         << "break"          << s.getAttr(seg, gr_slatBreak, 0);
-    if (s.just() > 0)
-        j << "justification"    << s.just();
     if (s.bidiLevel() > 0)
         j << "bidi"     << s.bidiLevel();
     if (!s.isBase())

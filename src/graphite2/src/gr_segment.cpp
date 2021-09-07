@@ -166,13 +166,4 @@ const gr_slot* gr_seg_last_slot(gr_segment* pSeg/*not NULL*/)
     return (--pSeg->slots().end()).handle();
 }
 
-float gr_seg_justify(gr_segment* pSeg/*not NULL*/, const gr_slot* pSlot/*not NULL*/, const gr_font *pFont, double width, enum gr_justFlags flags, const gr_slot *pFirst, const gr_slot *pLast)
-{
-    assert(pSeg);
-    assert(pSlot);
-    auto const first = pFirst == nullptr ? pSeg->slots().begin() : const_cast<gr_slot *>(pFirst),
-               last = pLast == nullptr ? pSeg->slots().end() : ++SlotBuffer::iterator(const_cast<gr_slot *>(pLast));
-    return pSeg->justify(const_cast<gr_slot *>(pSlot), pFont, float(width), justFlags(flags), first, last);
-}
-
 } // extern "C"

@@ -58,7 +58,6 @@ $(_NS)_SOURCES = \
     $($(_NS)_BASE)/src/GlyphCache.cpp \
     $($(_NS)_BASE)/src/GlyphFace.cpp \
     $($(_NS)_BASE)/src/Intervals.cpp \
-    $($(_NS)_BASE)/src/Justifier.cpp \
     $($(_NS)_BASE)/src/NameTable.cpp \
     $($(_NS)_BASE)/src/Pass.cpp \
     $($(_NS)_BASE)/src/Position.cpp \

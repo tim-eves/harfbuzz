@@ -51,7 +51,6 @@ struct Slot_data {
     Position    m_advance;  // .advance slot attribute
     Position    m_attach;   // attachment point on us
     Position    m_with;     // attachment point position on parent
-    float       m_just;     // Justification inserted space
     uint32_t      m_original; // charinfo that originated this slot (e.g. for feature values)
     uint32_t      m_before;   // charinfo index of before association
     uint32_t      m_after;    // charinfo index of after association
@@ -75,8 +74,6 @@ struct Slot_data {
 
 class Slot : private Slot_data
 {
-    static constexpr int NUMJUSTPARAMS = 5;
-
     union attributes {
     private:
         struct {
@@ -89,7 +86,7 @@ class Slot : private Slot_data
             #endif
         }   local;
         struct { 
-            uint8_t n_attrs, n_justs;
+            uint8_t n_attrs;
             int16_t data[1]; 
         } * external;
 
@@ -97,26 +94,21 @@ class Slot : private Slot_data
 
     public:
         constexpr attributes(): external{nullptr} {}
-        attributes(size_t n_attrs, size_t n_justs = 0): external{nullptr} { reserve(n_attrs, n_justs); }
+        attributes(size_t n_attrs): external{nullptr} { reserve(n_attrs); }
         attributes(attributes const & rhs): external{nullptr} { operator = (rhs); }
         attributes(attributes && rhs) noexcept : external{rhs.external} { rhs.external = nullptr; }
         ~attributes() noexcept { if (!is_inline()) free(external); }
 
-        void reserve(size_t target_num_attrs, size_t target_num_justs);
+        void reserve(size_t target_num_attrs);
         attributes & operator = (attributes const & rhs);
         attributes & operator = (attributes && rhs) noexcept;
 
         size_t num_attrs() const { return is_inline() ? local.n_attrs : external->n_attrs; }
-        size_t num_justs() const { return is_inline() ? 0 : external->n_justs; }
 
         int16_t       * user_attributes() { return is_inline() ? local.data : external->data; }
         int16_t const * user_attributes() const { return is_inline() ? local.data : external->data; }
-        int16_t       * just_info() { return is_inline() ? nullptr : external->data + external->n_attrs; }
-        int16_t const * just_info() const { return is_inline() ? nullptr : external->data + external->n_attrs; }
     };
 
-    bool has_justify() const { return m_attrs.num_justs() != 0; };
-    void init_just_infos(Segment const & seg);
     void attachTo(Slot *ap);
 
     attributes  m_attrs;
@@ -143,7 +135,7 @@ public:
 
 //     template<class T>
     constexpr Slot(sentinal const &)
-    : Slot_data{0, {}, {}, {}, {}, {}, 0, 0, 0, 0, -1u, uint16_t(-1), uint16_t(-1), 0, 0, 0, {true,false,false,false,true,true,false}},
+    : Slot_data{0, {}, {}, {}, {}, {}, 0, 0, 0, -1u, uint16_t(-1), uint16_t(-1), 0, 0, 0, {true,false,false,false,true,true,false}},
       m_attrs{}
 #if !defined GRAPHITE2_NTRACING
       , m_gen{0}
@@ -216,12 +208,6 @@ public:
     void    setAttr(Segment & seg, attrCode ind, uint8_t subindex, int16_t val, const ShapingContext & map);
     int     getAttr(const Segment &seg, attrCode ind, uint8_t subindex) const;
     int16_t const *userAttrs() const { return m_attrs.user_attributes(); }
-
-//     // Justification
-    int getJustify(const Segment &seg, uint8_t level, uint8_t subindex) const;
-    void setJustify(Segment &seg, uint8_t level, uint8_t subindex, int16_t value);
-    float just() const { return m_just; }
-    void just(float j) { m_just = j; }
 
     // Clustering
     cluster_iterator cluster();

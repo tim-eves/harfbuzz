@@ -101,21 +101,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         gr_slot_attr(s, seg, gr_attrCode(p.index), p.subindex);
       }
     }
-
-#if 0
-    if (n_slots >= 16)
-    {
-        auto s = gr_seg_last_slot(seg);
-        for (auto n = n_slots/2; n && s; --n, s = gr_slot_prev_in_segment(s));
-
-        auto sp = gr_slot_prev_in_segment(s);
-        gr_slot_linebreak_before(const_cast<gr_slot *>(s));
-        gr_seg_justify(seg, gr_seg_first_slot(seg), font, 1000,
-                        gr_justCompleteLine, nullptr, sp);
-        gr_seg_justify(seg, s, font, 1000,
-                        gr_justCompleteLine, s, nullptr);
-    }
-#endif
   }
 
   gr_seg_destroy(seg);
